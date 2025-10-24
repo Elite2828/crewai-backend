@@ -1,23 +1,45 @@
-from flask import Flask, request, jsonify
-from crewai import Crew, Agent, Task
-import os
+from flask import Flask, request, Response
+from twilio.twiml.voice_response import VoiceResponse
+import requests
 
 app = Flask(__name__)
 
-# Example CrewAI agent setup (replace with your real agents later)
+# 🧠 Function to communicate with your CrewAI backend
 def run_crewai_agent(user_message):
-    agent = Agent(name="Voice Assistant", role="AI Assistant", goal="Understand user queries and respond helpfully")
-    task = Task(description=user_message, expected_output="Helpful response")
-    crew = Crew(agents=[agent], tasks=[task])
-    result = crew.kickoff()
-    return result
+    try:
+        r = requests.post(
+            "https://crewai-backend-slmc.onrender.com/api/chat",  # Your CrewAI backend endpoint
+            json={"message": user_message},
+            timeout=15
+        )
+        response = r.json().get("response", "Sorry, I didn’t understand that.")
+    except Exception as e:
+        print("CrewAI backend error:", e)
+        response = "Sorry, I’m having trouble connecting to CrewAI right now."
+    return response
 
-@app.route("/api/chat", methods=["POST"])
-def chat():
-    data = request.json
-    user_msg = data.get("message", "")
-    response = run_crewai_agent(user_msg)
-    return jsonify({"response": response})
+
+# 🎙️ Voice endpoint for Twilio to call
+@app.route("/voice", methods=['POST'])
+def voice():
+    # Capture speech or fallback to text
+    user_input = request.form.get('SpeechResult') or "Hello, how can I help you?"
+    
+    # Send user’s voice text to your CrewAI backend
+    ai_response = run_crewai_agent(user_input)
+    
+    # Create Twilio voice reply
+    twiml = VoiceResponse()
+    twiml.say(ai_response, voice='Polly.Joanna', language='en-US')
+    
+    return Response(str(twiml), mimetype="text/xml")
+
+
+# ✅ Health check or manual test endpoint
+@app.route("/")
+def home():
+    return "Voice AI Bot is running successfully!"
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
