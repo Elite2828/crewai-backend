@@ -1,29 +1,59 @@
 from flask import Flask, request, jsonify
-from crewai import Crew, Agent, Task
+import africastalking
+import os
+import requests
 
 app = Flask(__name__)
 
-def run_crewai_agent(user_message):
-    agent = Agent(
-        name="Voice Assistant",
-        role="AI Assistant",
-        goal="Understand user queries and respond helpfully"
-    )
-    task = Task(description=user_message, expected_output="Helpful response")
-    crew = Crew(agents=[agent], tasks=[task])
-    result = crew.kickoff()
-    return result
+# Initialize Africa's Talking
+username = "sandbox"  # or your live username when you go live
+api_key = "YOUR_API_KEY_HERE"
+africastalking.initialize(username, api_key)
 
-@app.route("/api/chat", methods=["POST"])
-def chat():
-    data = request.json
-    user_msg = data.get("message", "")
-    response = run_crewai_agent(user_msg)
-    return jsonify({"response": response})
+voice = africastalking.Voice
+
+@app.route("/voice", methods=["POST"])
+def voice_handler():
+    # Africa's Talking sends 'isActive' when a call is ongoing
+    is_active = request.values.get("isActive")
+
+    if is_active == '1':
+        caller_number = request.values.get("callerNumber")
+        print("Incoming call from:", caller_number)
+
+        # Send the speech/text to CrewAI backend
+        try:
+            user_message = "Incoming voice call from " + caller_number
+            r = requests.post(
+                "https://crewai-backend-slmc.onrender.com/api/chat",
+                json={"message": user_message},
+                timeout=15
+            )
+            response = r.json().get("response", "Sorry, I didn’t understand that.")
+        except Exception as e:
+            print("CrewAI backend error:", e)
+            response = "Sorry, I’m having trouble connecting to CrewAI right now."
+
+        # Return Africa's Talking Voice XML
+        xml_response = f"""
+        <Response>
+            <Say>{response}</Say>
+            <Hangup/>
+        </Response>
+        """
+        return xml_response, 200, {"Content-Type": "application/xml"}
+
+    else:
+        # When the call ends
+        print("Call ended.")
+        return "OK", 200
+
 
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ CrewAI Backend is live and working!"
+    return "✅ CrewAI + Africa's Talking Voice Agent is running!"
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+    
