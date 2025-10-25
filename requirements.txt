@@ -1,3 +1,4 @@
 Flask
-crewai
+requests
+africastalking
 gunicorn
