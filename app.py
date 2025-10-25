@@ -8,7 +8,7 @@ app = Flask(__name__)
 # Initialize Africa's Talking
 username = "sandbox"  # or your live username when you go live
 api_key = "RuNZoC6ih"
-africastalking.initialize(username, RuNZoC6ih)
+africastalking.initialize(username, api_key)
 
 voice = africastalking.Voice
 
